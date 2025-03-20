@@ -37,6 +37,9 @@ static struct http_parser_settings parser_settings = {
 
 static volatile sig_atomic_t stop = 0;
 
+/** Counter for the number of threads that finished establishing connections */
+static volatile uint32_t conns_established = 0;
+
 static void handler(int sig) {
     stop = 1;
 }
@@ -143,6 +146,9 @@ int main(int argc, char **argv) {
     uint64_t bytes    = 0;
     errors errors     = { 0 };
 
+    fprintf(stderr, "Waiting to establish connections\n");
+    while(conns_established < cfg.threads){}
+    fprintf(stderr, "Established connections\n");
     sleep(cfg.duration);
     stop = 1;
 
@@ -219,6 +225,7 @@ void *thread_main(void *arg) {
         c->length  = length;
         c->delayed = cfg.delay;
         connect_socket(thread, c);
+        usleep(100000);
     }
 
     aeEventLoop *loop = thread->loop;
@@ -374,6 +381,7 @@ static void socket_connected(aeEventLoop *loop, int fd, void *data, int mask) {
     aeCreateFileEvent(c->thread->loop, fd, AE_READABLE, socket_readable, c);
     aeCreateFileEvent(c->thread->loop, fd, AE_WRITABLE, socket_writeable, c);
 
+    __sync_fetch_and_add(&conns_established, 1);
     return;
 
   error:
@@ -384,6 +392,9 @@ static void socket_connected(aeEventLoop *loop, int fd, void *data, int mask) {
 static void socket_writeable(aeEventLoop *loop, int fd, void *data, int mask) {
     connection *c = data;
     thread *thread = c->thread;
+
+    if (conns_established < cfg.connections)
+        return;
 
     if (c->delayed) {
         uint64_t delay = script_delay(thread->L);
