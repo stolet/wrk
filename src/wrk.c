@@ -146,8 +146,11 @@ int main(int argc, char **argv) {
     uint64_t bytes    = 0;
     errors errors     = { 0 };
 
+    /** Do this so we account for integer rounding and  actually wait 
+     *  for the number of conns request 
+     */
     fprintf(stderr, "Waiting to establish connections\n");
-    while(conns_established < cfg.threads){}
+    while(conns_established < (cfg.connections / cfg.threads) * cfg.threads){}
     fprintf(stderr, "Established connections\n");
     sleep(cfg.duration);
     stop = 1;
@@ -225,7 +228,7 @@ void *thread_main(void *arg) {
         c->length  = length;
         c->delayed = cfg.delay;
         connect_socket(thread, c);
-        usleep(100000);
+	usleep(100000);
     }
 
     aeEventLoop *loop = thread->loop;
