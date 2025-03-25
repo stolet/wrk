@@ -396,8 +396,8 @@ static void socket_writeable(aeEventLoop *loop, int fd, void *data, int mask) {
     connection *c = data;
     thread *thread = c->thread;
 
-    if (conns_established < cfg.connections)
-        return;
+    if (conns_established < (cfg.connections / cfg.threads) * cfg.threads)
+	return;
 
     if (c->delayed) {
         uint64_t delay = script_delay(thread->L);
